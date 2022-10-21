@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+
+<!--
+TODO
+
+ready, start, end, winner sounds
+
+Presentation HTML
+
+V2
+Sudden Death
+Players
+Matchmaking
+-->
+
+<head>
+<title>WCT Dashboard</title>
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    background: black;
+    color: white;
+    font-family: calibri, sans-serif;
+}
+#createNameTeamA, #createNameTeamB {
+    float: left;
+    width: 40%;
+    margin: 10vh 5%;
+    height: 30vh;
+    background: grey;
+    opacity: 60%;
+    border: none;
+    font-size: 200%;
+    text-align: center;
+}
+#createColorTeamA, #createColorTeamB {
+    float: left;
+    width: 40%;
+    margin: 0 5%;
+    height: 10vh;
+}
+#submitTeams {
+    float: left;
+    width: 90%;
+    height: 20vh;
+    margin: 10vh 5%;
+    background: #ff8300;
+    opacity: 100%;
+    text-align: center;
+    line-height: 20vh;
+    font-size: 8vh;
+}
+
+#selectEvader, #submitEvader {
+    width: 60%;
+    text-align: center;
+}
+#selectEvader {
+    height: 30vh;
+    margin: 20vh 20%;
+    font-size: 10vh;
+}
+#submitEvader {
+    height: 20vh;
+    margin: 0 20%;
+    font-size: 8vh;
+    line-height: 20vh;
+    background: #ff8300;
+}
+
+#teamA, #scoreA, #scoreB, #teamB, #evader, #timer {
+    float: left;
+    height: 20vh;
+    font-size: 10vh;
+    text-align: center;
+    line-height: 20vh;
+}
+#colorTeamA, #colorTeamB {
+    height: 20vh;
+    width: 50%;
+    float: left;
+}
+#teamA, #teamB, #scoreA, #scoreB {
+    height: inherit;
+    background: inherit;
+    background-clip: text;
+    color: transparent;
+    filter: invert(1) grayscale(1) contrast(9);
+}
+#teamA, #teamB {
+    width: 70%;
+}
+#scoreA, #scoreB {
+    width: 30%;
+}
+#evader, #timer {
+    width: 100%;
+}
+#changeEvader, #start, #break {
+    width: 50%;
+    height: 40vh;
+    float: left;
+    text-align: center;
+    font-size: 20vh;
+    line-height: 40vh;
+}
+#timer {
+    color: black;
+    background: linear-gradient(to left, white 50%, orange 50%);
+    background-size: 200% 100%;
+    background-position:left bottom;
+}
+</style>
+</head>
+
+<body>
+<script>
+let TEAM_A = 0
+let TEAM_B = 1
+let TIMER = null
+let COUNTDOWN = null
+GAME_ACTIVE = false
+let stats = null
+
+createStats()
+function createStats() {
+    stats = {
+        teams: {
+            // team { name, color, score }
+        },
+        evader: null,
+        break: false,
+        run: 0,
+        maxRuns: 16,
+        scoreToWin: 8,
+        winner: null,
+        runStats: [],
+    }
+}
+
+function updateLocalstorage() {
+    localStorage.setItem("stats", JSON.stringify(stats))
+}
+
+
+<!-- UI related functions -->
+function removeChilds(parent) {
+    while (parent.lastChild) {
+        parent.removeChild(parent.lastChild)
+    }
+}
+const html = document.getElementsByTagName("body")[0]
+
+createTeamNamesDisplay()
+
+function createTeamNamesDisplay() {
+let createNameTeamAInput = document.createElement("input")
+createNameTeamAInput.setAttribute("id", "createNameTeamA")
+let createNameTeamBInput = document.createElement("input")
+createNameTeamBInput.setAttribute("id", "createNameTeamB")
+
+let createColorTeamAInput = document.createElement("input")
+createColorTeamAInput.setAttribute("id", "createColorTeamA")
+let createColorTeamBInput = document.createElement("input")
+createColorTeamBInput.setAttribute("id", "createColorTeamB")
+
+createColorTeamAInput.type = "color"
+createColorTeamBInput.type = "color"
+
+let submitTeamsButton = document.createElement("div")
+submitTeamsButton.innerHTML = "SUBMIT"
+submitTeamsButton.setAttribute("id", "submitTeams")
+submitTeamsButton.onclick = function() { submitTeams() }
+
+html.appendChild(createNameTeamAInput)
+html.appendChild(createNameTeamBInput)
+html.appendChild(createColorTeamAInput)
+html.appendChild(createColorTeamBInput)
+html.appendChild(submitTeamsButton)
+}
+
+function submitTeams() {
+    TEAM_A = document.getElementById("createNameTeamA").value
+    TEAM_B = document.getElementById("createNameTeamB").value
+    stats.teams[TEAM_A] = new Object()
+    stats.teams[TEAM_B] = new Object()
+    stats.teams[TEAM_A].name = document.getElementById("createNameTeamA").value
+    stats.teams[TEAM_B].name = document.getElementById("createNameTeamB").value
+    stats.teams[TEAM_A].color = document.getElementById("createColorTeamA").value
+    stats.teams[TEAM_B].color = document.getElementById("createColorTeamB").value
+    stats.teams[TEAM_A].score = 0
+    stats.teams[TEAM_B].score = 0
+    removeChilds(html)
+    createEvadingTeamDisplay()
+}
+
+function createEvadingTeamDisplay() {
+
+    let selectEvaderSelect = document.createElement("select")
+    selectEvaderSelect.setAttribute("id", "selectEvader")
+    let optionA = document.createElement("option")
+    optionA.value = TEAM_A
+    optionA.innerHTML = stats.teams[TEAM_A].name
+    selectEvaderSelect.appendChild(optionA)
+    let optionB = document.createElement("option")
+    optionB.value = TEAM_B
+    optionB.innerHTML = stats.teams[TEAM_B].name
+    selectEvaderSelect.appendChild(optionB)
+
+    let submitEvaderButton = document.createElement("div")
+    submitEvaderButton.innerHTML = "SUBMIT"
+    submitEvaderButton.setAttribute("id", "submitEvader")
+    submitEvaderButton.onclick = function() { submitEvader() }
+
+    html.appendChild(selectEvaderSelect)
+    html.appendChild(submitEvaderButton)
+}
+
+function submitEvader() {
+    stats.evader = document.getElementById("selectEvader").value
+    removeChilds(html)
+    createDashboardDisplay()
+}
+
+function createDashboardDisplay() {
+    let colorTeamADiv = document.createElement("div")
+    colorTeamADiv.setAttribute("id", "colorTeamA")
+    colorTeamADiv.style.background = stats.teams[TEAM_A].color
+    let colorTeamBDiv = document.createElement("div")
+    colorTeamBDiv.setAttribute("id", "colorTeamB")
+    colorTeamBDiv.style.background = stats.teams[TEAM_B].color
+    let timerDiv = document.createElement("div")
+    timerDiv.setAttribute("id", "timer")
+    let teamADiv = document.createElement("div")
+    teamADiv.setAttribute("id", "teamA")
+    teamADiv.innerHTML = stats.teams[TEAM_A].name
+    let teamBDiv = document.createElement("div")
+    teamBDiv.setAttribute("id", "teamB")
+    teamBDiv.innerHTML = stats.teams[TEAM_B].name
+    let scoreADiv = document.createElement("div")
+    scoreADiv.setAttribute("id", "scoreA")
+    scoreADiv.innerHTML = stats.teams[TEAM_A].score
+    let scoreBDiv = document.createElement("div")
+    scoreBDiv.setAttribute("id", "scoreB")
+    scoreBDiv.innerHTML = stats.teams[TEAM_B].score
+    let evaderDiv = document.createElement("div")
+    evaderDiv.setAttribute("id", "evader")
+    if (stats.evader === stats.teams[TEAM_A].name) {
+        evaderDiv.innerHTML = stats.teams[TEAM_A].name
+    } else {
+        evaderDiv.innerHTML = stats.teams[TEAM_B].name
+    }
+    let changeEvaderDiv = document.createElement("div")
+    changeEvaderDiv.setAttribute("id", "changeEvader")
+    changeEvaderDiv.innerHTML = "CATCH"
+    changeEvaderDiv.onclick = function() { changeEvader() }
+
+    colorTeamADiv.appendChild(teamADiv)
+    colorTeamADiv.appendChild(scoreADiv)
+    colorTeamBDiv.appendChild(scoreBDiv)
+    colorTeamBDiv.appendChild(teamBDiv)
+    html.appendChild(colorTeamADiv)
+    html.appendChild(colorTeamBDiv)
+    html.appendChild(evaderDiv)
+    html.appendChild(timerDiv)
+    html.appendChild(changeEvaderDiv)
+    createStartDiv()
+}
+
+function createStartDiv() {
+    let startDiv = document.createElement("div")
+    startDiv.setAttribute("id", "start")
+    startDiv.onclick = function() { createBreakDiv() }
+    startDiv.innerHTML = "START"
+
+    html.appendChild(startDiv)
+}
+
+function createBreakDiv() {
+    document.getElementById("start").remove()
+
+    let breakDiv = document.createElement("div")
+    breakDiv.setAttribute("id", "break")
+    breakDiv.innerHTML = "BREAK"
+    breakDiv.onclick = function() { hold() }
+
+    html.appendChild(breakDiv)
+
+    startTimer()
+}
+
+function changeEvader() {
+    checkMaxRuns()
+    if (stats.evader === TEAM_A) {
+        stats.evader = TEAM_B
+        if (!GAME_ACTIVE) {
+            if (stats.teams[TEAM_A].score > 0) {
+                stats.teams[TEAM_A].score--
+            }
+        }
+        document.getElementById("scoreA").innerHTML = stats.teams[TEAM_A].score
+        document.getElementById("evader").innerHTML = stats.teams[TEAM_B].name
+    }
+    else if (stats.evader === TEAM_B) {
+        stats.evader = TEAM_A
+        if (!GAME_ACTIVE) {
+            if (stats.teams[TEAM_B].score > 0) {
+                stats.teams[TEAM_B].score--
+            }
+        }
+        document.getElementById("scoreB").innerHTML = stats.teams[TEAM_B].score
+        document.getElementById("evader").innerHTML = stats.teams[TEAM_A].name
+    }
+    if (GAME_ACTIVE) {
+        // end sound
+        clearTimeout(TIMER)
+        clearInterval(COUNTDOWN)
+        GAME_ACTIVE = false
+        startTimer()
+    }
+}
+
+function hold() {
+    stopTimer()
+    document.getElementById("break").remove()
+    createStartDiv()
+}
+
+function checkScore() {
+    if (stats.teams[TEAM_A].score === stats.scoreToWin) {
+        winDisplay(TEAM_A)
+        return true
+    }
+    else if (stats.teams[TEAM_B].score === stats.scoreToWin) {
+        winDisplay(TEAM_B)
+        return true
+    }
+    return false
+}
+
+function checkMaxRuns() {
+    if (stats.run >= stats.maxRuns) {
+        if (stats.teams[TEAM_A].score > stats.teams[TEAM_B].score) {
+            winDisplay(TEAM_A)
+        }
+        else if (stats.teams[TEAM_B].score > stats.teams[TEAM_A].score) {
+            winDisplay(TEAM_B)
+        }
+        else {
+            suddenDeath()
+        }
+        return true
+    }
+    return false
+}
+
+function winDisplay(team) {
+    removeChilds(html)
+
+    let wrapper = document.createElement("div")
+    wrapper.style.background = stats.teams[team].color
+    wrapper.style.width = "100%"
+    wrapper.style.height = "70vh"
+    let winner = document.createElement("div")
+    winner.innerHTML = "WINNER<br>" + team
+    winner.style.width = "100%"
+    winner.style.height = "inherit"
+    winner.style.background = "inherit"
+    winner.style.backgroundClip = "text"
+    winner.style.color = "transparent"
+    winner.style.filter = "invert(1) grayscale(1) contrast(9)"
+    winner.style.fontSize = "20vh"
+    winner.style.lineHeight = "30vh"
+    winner.style.fontWeight = "bold"
+    winner.style.textAlign = "center"
+    let restart = document.createElement("div")
+    restart.innerHTML = "NEW GAME"
+    restart.style.width = "100%"
+    restart.style.height = "30vh"
+    restart.style.fontSize = "20vh"
+    restart.style.lineHeight = "35vh"
+    restart.style.textAlign = "center"
+    restart.onclick = function() { newGame() }
+
+    wrapper.appendChild(winner)
+    html.appendChild(wrapper)
+    html.appendChild(restart)
+}
+
+function newGame() {
+    removeChilds(html)
+    createStats()
+    createTeamNamesDisplay()
+}
+
+<!-- time related functions -->
+function startTimer() {
+    displayTimer(25)
+    TIMER = setTimeout(function() {
+        clearInterval(COUNTDOWN)
+        clearTimeout(TIMER)
+        // get ready sound
+        getReady()
+    }, 1501)
+}
+
+function getReady() {
+    displayTimer(10)
+    TIMER = setTimeout(function() {
+        // start sound
+        clearInterval(COUNTDOWN)
+        clearTimeout(TIMER)
+        gameTimer()
+    }, 1001)
+}
+
+function gameTimer() {
+    stats.run++
+    displayTimer(20, true)
+    GAME_ACTIVE = true
+    TIMER = setTimeout(function() {
+        // end sound
+        if (stats.evader === TEAM_A) {
+            stats.teams[TEAM_A].score++
+            document.getElementById("scoreA").innerHTML = stats.teams[TEAM_A].score
+        } else if (stats.evader === TEAM_B) {
+            stats.teams[TEAM_B].score++
+            document.getElementById("scoreB").innerHTML = stats.teams[TEAM_B].score
+        }
+        clearTimeout(TIMER)
+        clearInterval(COUNTDOWN)
+        GAME_ACTIVE = false
+        if (checkScore()) {
+            return
+        }
+        if (checkMaxRuns()) {
+            return
+        }
+        startTimer()
+    }, 20000)
+}
+
+function displayTimer(time, game) {
+    let el = document.getElementById("timer")
+    if (game) {
+        el.style.transition = "all 20s linear"
+        setTimeout(() => {
+            el.style.backgroundPosition = "left bottom"
+        }, 0)
+    } else {
+        el.style.transition = null
+        el.style.backgroundPosition = "right bottom"
+    }
+    el.innerHTML = time
+    COUNTDOWN = setInterval(function() {
+        time--
+        el.innerHTML = time
+    }, 1000)
+}
+
+function stopTimer() {
+    clearInterval(COUNTDOWN)
+    clearTimeout(TIMER)
+    let el = document.getElementById("timer")
+    el.innerHTML = "ON HOLD"
+    el.style.transition = null
+    el.style.backgroundPosition = "right bottom"
+    stats.break = true
+}
+</script>
+</body>
