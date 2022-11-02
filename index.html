@@ -3,14 +3,20 @@
 <!--
 TODO
 
-ready, start, end, winner sounds
+create labels for input fields
+stats: round [roundNr, chaser, evader, time, catch/evade]
+fastestCatch
+ready, start, end, matchpoint, winner sounds
+flash div of team that made point
 
+stats (json) viewer
 Presentation HTML
 
-V2
+Later Versions:
 Sudden Death
 Players
 Matchmaking
+Light System
 -->
 
 <head>
@@ -22,6 +28,17 @@ Matchmaking
     background: black;
     color: white;
     font-family: calibri, sans-serif;
+}
+#createMaxRuns, #createScoreToWin {
+    float: left;
+    width: 50vw;
+    height: 19vh;
+    margin: 10vh 25vw 0 25vw;
+    background: grey;
+    opacity: 60%;
+    border: none;
+    font-size: 200%;
+    text-align: center;
 }
 #createNameTeamA, #createNameTeamB {
     float: left;
@@ -40,7 +57,7 @@ Matchmaking
     margin: 0 5%;
     height: 10vh;
 }
-#submitTeams {
+#submitTeams, #submitScores {
     float: left;
     width: 90%;
     height: 20vh;
@@ -50,6 +67,8 @@ Matchmaking
     text-align: center;
     line-height: 20vh;
     font-size: 8vh;
+    position: fixed;
+    bottom: 0;
 }
 
 #selectEvader, #submitEvader {
@@ -116,12 +135,12 @@ Matchmaking
 
 <body>
 <script>
-let TEAM_A = 0
-let TEAM_B = 1
-let TIMER = null
-let COUNTDOWN = null
-GAME_ACTIVE = false
+let TEAM_A, TEAM_B = null
+let TIMER, COUNTDOWN = null
+let CHASE_START_TIME = null
+let GAME_ACTIVE = false
 let stats = null
+let currentStat = {}
 
 createStats()
 function createStats() {
@@ -135,6 +154,7 @@ function createStats() {
         maxRuns: 16,
         scoreToWin: 8,
         winner: null,
+        fastestCatch: 0,
         runStats: [],
     }
 }
@@ -152,31 +172,52 @@ function removeChilds(parent) {
 }
 const html = document.getElementsByTagName("body")[0]
 
-createTeamNamesDisplay()
+createScoresDisplay()
+
+function createScoresDisplay() {
+    let createMaxRunsInput = document.createElement("input")
+    createMaxRunsInput.id = "createMaxRuns"
+    createMaxRunsInput.value = 16
+    let createScoreToWinInput = document.createElement("input")
+    createScoreToWinInput.id = "createScoreToWin"
+    createScoreToWinInput.value = 8
+    let submitScoresButton = document.createElement("div")
+    submitScoresButton.id = "submitScores"
+    submitScoresButton.innerHTML = "SUBMIT"
+    submitScoresButton.onclick = () => { createTeamNamesDisplay() }
+
+    html.appendChild(createMaxRunsInput)
+    html.appendChild(createScoreToWinInput)
+    html.appendChild(submitScoresButton)
+}
 
 function createTeamNamesDisplay() {
-let createNameTeamAInput = document.createElement("input")
-createNameTeamAInput.setAttribute("id", "createNameTeamA")
-let createNameTeamBInput = document.createElement("input")
-createNameTeamBInput.setAttribute("id", "createNameTeamB")
+    stats.maxRuns = document.getElementById("createMaxRuns").value
+    stats.scoreToWin = parseInt(document.getElementById("createScoreToWin").value)
 
-let createColorTeamAInput = document.createElement("input")
-createColorTeamAInput.setAttribute("id", "createColorTeamA")
-let createColorTeamBInput = document.createElement("input")
-createColorTeamBInput.setAttribute("id", "createColorTeamB")
+    removeChilds(html)
+    let createNameTeamAInput = document.createElement("input")
+    createNameTeamAInput.setAttribute("id", "createNameTeamA")
+    let createNameTeamBInput = document.createElement("input")
+    createNameTeamBInput.setAttribute("id", "createNameTeamB")
 
-createColorTeamAInput.type = "color"
-createColorTeamBInput.type = "color"
+    let createColorTeamAInput = document.createElement("input")
+    createColorTeamAInput.setAttribute("id", "createColorTeamA")
+    let createColorTeamBInput = document.createElement("input")
+    createColorTeamBInput.setAttribute("id", "createColorTeamB")
 
-let submitTeamsButton = document.createElement("div")
-submitTeamsButton.innerHTML = "SUBMIT"
-submitTeamsButton.setAttribute("id", "submitTeams")
-submitTeamsButton.onclick = function() { submitTeams() }
+    createColorTeamAInput.type = "color"
+    createColorTeamBInput.type = "color"
 
-html.appendChild(createNameTeamAInput)
-html.appendChild(createNameTeamBInput)
-html.appendChild(createColorTeamAInput)
-html.appendChild(createColorTeamBInput)
+    let submitTeamsButton = document.createElement("div")
+    submitTeamsButton.innerHTML = "SUBMIT"
+    submitTeamsButton.setAttribute("id", "submitTeams")
+    submitTeamsButton.onclick = function() { submitTeams() }
+
+    html.appendChild(createNameTeamAInput)
+    html.appendChild(createNameTeamBInput)
+    html.appendChild(createColorTeamAInput)
+    html.appendChild(createColorTeamBInput)
 html.appendChild(submitTeamsButton)
 }
 
@@ -271,13 +312,20 @@ function createDashboardDisplay() {
 function createStartDiv() {
     let startDiv = document.createElement("div")
     startDiv.setAttribute("id", "start")
-    startDiv.onclick = function() { createBreakDiv() }
+    startDiv.onclick = function() { startGame() }
     startDiv.innerHTML = "START"
 
     html.appendChild(startDiv)
 }
 
-function createBreakDiv() {
+function startGame() {
+    stopTimers()
+    if (GAME_ACTIVE) {
+        stats.teams[stats.evader].score++
+        updateScoreDisplay()
+    }
+    GAME_ACTIVE = false
+    stats.break = false
     document.getElementById("start").remove()
 
     let breakDiv = document.createElement("div")
@@ -291,6 +339,7 @@ function createBreakDiv() {
 }
 
 function changeEvader() {
+    setRoundTime()
     checkMaxRuns()
     if (stats.evader === TEAM_A) {
         stats.evader = TEAM_B
@@ -299,8 +348,7 @@ function changeEvader() {
                 stats.teams[TEAM_A].score--
             }
         }
-        document.getElementById("scoreA").innerHTML = stats.teams[TEAM_A].score
-        document.getElementById("evader").innerHTML = stats.teams[TEAM_B].name
+        updateScoreDisplay()
     }
     else if (stats.evader === TEAM_B) {
         stats.evader = TEAM_A
@@ -309,16 +357,25 @@ function changeEvader() {
                 stats.teams[TEAM_B].score--
             }
         }
-        document.getElementById("scoreB").innerHTML = stats.teams[TEAM_B].score
-        document.getElementById("evader").innerHTML = stats.teams[TEAM_A].name
+        updateScoreDisplay()
     }
     if (GAME_ACTIVE) {
         // end sound
-        clearTimeout(TIMER)
-        clearInterval(COUNTDOWN)
+        stopTimers()
         GAME_ACTIVE = false
         startTimer()
     }
+    if (stats.break) {
+        GAME_ACTIVE = false
+        stats.break = false
+        startGame()
+    }
+}
+
+function updateScoreDisplay() {
+    document.getElementById("scoreA").innerHTML = stats.teams[TEAM_A].score
+    document.getElementById("scoreB").innerHTML = stats.teams[TEAM_B].score
+    document.getElementById("evader").innerHTML = stats.evader
 }
 
 function hold() {
@@ -328,14 +385,12 @@ function hold() {
 }
 
 function checkScore() {
-    if (stats.teams[TEAM_A].score === stats.scoreToWin) {
-        winDisplay(TEAM_A)
-        return true
-    }
-    else if (stats.teams[TEAM_B].score === stats.scoreToWin) {
-        winDisplay(TEAM_B)
-        return true
-    }
+    [stats.teams[TEAM_A], stats.teams[TEAM_B]].forEach(team => {
+        if (team.score === stats.scoreToWin) {
+            winDisplay(team.name)
+            return true
+        }
+    })
     return false
 }
 
@@ -396,40 +451,34 @@ function newGame() {
 
 <!-- time related functions -->
 function startTimer() {
+    currentStat = new Object()
     displayTimer(25)
     TIMER = setTimeout(function() {
-        clearInterval(COUNTDOWN)
-        clearTimeout(TIMER)
-        // get ready sound
+        stopTimers()
         getReady()
-    }, 15001)
+    }, 1501)
 }
 
 function getReady() {
+    // get ready sound
     displayTimer(10)
     TIMER = setTimeout(function() {
-        // start sound
-        clearInterval(COUNTDOWN)
-        clearTimeout(TIMER)
+        stopTimers()
         gameTimer()
-    }, 10001)
+    }, 1001)
 }
 
 function gameTimer() {
     stats.run++
+    CHASE_START_TIME = Date.now()
+    // start sound
     displayTimer(20, true)
     GAME_ACTIVE = true
     TIMER = setTimeout(function() {
         // end sound
-        if (stats.evader === TEAM_A) {
-            stats.teams[TEAM_A].score++
-            document.getElementById("scoreA").innerHTML = stats.teams[TEAM_A].score
-        } else if (stats.evader === TEAM_B) {
-            stats.teams[TEAM_B].score++
-            document.getElementById("scoreB").innerHTML = stats.teams[TEAM_B].score
-        }
-        clearTimeout(TIMER)
-        clearInterval(COUNTDOWN)
+        stats.teams[stats.evader].score++
+        updateScoreDisplay()
+        stopTimers()
         GAME_ACTIVE = false
         if (checkScore()) {
             return
@@ -460,13 +509,38 @@ function displayTimer(time, game) {
 }
 
 function stopTimer() {
-    clearInterval(COUNTDOWN)
-    clearTimeout(TIMER)
+    setRoundTime()
+    stopTimers()
     let el = document.getElementById("timer")
     el.innerHTML = "ON HOLD"
     el.style.transition = null
     el.style.backgroundPosition = "right bottom"
     stats.break = true
 }
+
+function setRoundTime() {
+    currentStat.time = Date.now() - CHASE_START_TIME
+}
+
+function stopTimers() {
+    clearInterval(COUNTDOWN)
+    clearTimeout(TIMER)
+}
+
+<!-- Keyboard Controls -->
+document.addEventListener('keydown', (key) => {
+    if (key.code === 'Space') {
+        changeEvader()
+    } else if (key.code === 'Enter') {
+        if (GAME_ACTIVE && !stats.break) {
+            hold()
+        } else if (GAME_ACTIVE || stats.break || !TIMER) {
+            startGame()
+        } else {
+            hold()
+        }
+
+    }
+})
 </script>
 </body>
